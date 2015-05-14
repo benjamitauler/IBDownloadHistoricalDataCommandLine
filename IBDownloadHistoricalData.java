@@ -20,6 +20,7 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.lang.Thread;
+import java.util.List;
 
 /*
 	Historical Data Limitations: https://www.interactivebrokers.com/en/software/api/apiguide/tables/historical_data_limitations.htm
@@ -69,6 +70,14 @@ class IBDownloadHistoricalData  implements EWrapper {
 	private boolean mIsThisRequestFinished = false;
 	private Date mCurrRequestDateTime = null;
 				
+    //Added dummy methods to make it compile
+    public void displayGroupUpdated( int reqId, String contractInfo){};
+    public void displayGroupList( int reqId, String groups){};
+    public void verifyCompleted( boolean isSuccessful, String errorText){};
+    public void verifyMessageAPI( String apiData){};
+    
+    
+    
     public static void main (String args[]) {
 		System.out.println("Starting IBDownloadHistoricalData");
 		IBDownloadHistoricalData downloader = new IBDownloadHistoricalData();
@@ -185,10 +194,12 @@ class IBDownloadHistoricalData  implements EWrapper {
 		String requestDateTimeStr = formatter.format(mCurrRequestDateTime);
 		
 		System.out.println(String.format("Send Historical Data Request For contract=%s requestDateTimeStr=%s requestField=%s", mContract.m_currency, requestDateTimeStr, mRequestField));
-		mClient.reqHistoricalData( 0, mContract,
-									requestDateTimeStr, "1 D", //request in 1 day blocks
-                                    "1 min", mRequestField,
-                                    1, 1);
+		
+                //Added new parameter List<TagValue> chartOptions as NULL, to make it work with the new API.
+                mClient.reqHistoricalData( 0, mContract, 
+                                           requestDateTimeStr, "1 D",
+                                           "1 min", mRequestField,
+                                           1, 1, null);
 											
     }
 
