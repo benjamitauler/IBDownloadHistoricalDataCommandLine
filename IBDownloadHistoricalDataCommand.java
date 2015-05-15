@@ -47,7 +47,7 @@ import java.util.List;
 	
 	
 */
-class IBDownloadHistoricalData  implements EWrapper {
+class IBDownloadHistoricalDataCommand  implements EWrapper {
 
     private EClientSocket   mClient = new EClientSocket( this);
    
@@ -70,7 +70,7 @@ class IBDownloadHistoricalData  implements EWrapper {
     public static void main (String args[]) {
         //System.out.println("Starting IBDownloadHistoricalData");
         // Create a instance of this object.
-        IBDownloadHistoricalData downloader = new IBDownloadHistoricalData();
+        IBDownloadHistoricalDataCommand downloader = new IBDownloadHistoricalDataCommand();
         downloader.run(args);
     }
     
