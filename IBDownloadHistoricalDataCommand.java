@@ -88,7 +88,7 @@ class IBDownloadHistoricalDataCommand  implements EWrapper {
     @Option(name="-security",usage="Security for the symbol: STK, CASH, BOND, FUND, OPT, FUT, IND & more ... ")
     private String mSecurity="CASH";
     @Option(name="-exchange",usage="Exchange market for the symbol: IDEALPRO, SMART, & more ... ")
-    private String mExchange="IDEALPRO";
+    private String mExchange="SMART";
     @Option(name="-pexchange",usage="Primary exchange market for the symbol: IDEALPRO, SMART, & more ... ")
     private String mPrimaryExchange="IDEALPRO";
     @Option(name="-field",usage="Field to ask for: BID, ASK, BID_ASK, TRADES, HISTORICAL_VOLATILTY ... ")
@@ -168,7 +168,7 @@ class IBDownloadHistoricalDataCommand  implements EWrapper {
         String requestDateTimeStr = formatter.format(getLatestDownloadDate());
         
         mIsThisRequestFinished = false;
-        requestHistoricalData(contract,mRangeNumber+" "+mRangeUnits,mField,mLastDate+" "+mLastHour);
+        mClient.reqHistoricalData( 0, contract, mLastDate+" "+mLastHour, mRangeNumber+" "+mRangeUnits, "1 day", mField, 1, 1, null);	
         //loop & wait for response from server
         int waitResponseCounter=0;
         while (!mIsThisRequestFinished) {
@@ -244,12 +244,7 @@ class IBDownloadHistoricalDataCommand  implements EWrapper {
         mClient.eDisconnect();
     }
 
-    void requestHistoricalData(Contract contract, String range, String field, String lastDate) {
-                //Set to yesterday (we dont want Real Time data, we want only closing quotes)
-		System.out.println(String.format("Send Historical Data Request For contract=%s requestDateTimeStr=%s requestField=%s", contract.m_currency, lastDate, field));
-                //Added new parameter List<TagValue> chartOptions as NULL, to make it work with the new API.
-                mClient.reqHistoricalData( 0, contract, lastDate, range, "1 day", field, 1, 1, null);										
-    }
+    
 	
     public void nextValidId( int orderId) {
         // received next valid order id
@@ -278,7 +273,9 @@ class IBDownloadHistoricalDataCommand  implements EWrapper {
     public void historicalData(int reqId, String date, double open, double high, double low,
                                double close, int volume, int count, double WAP, boolean hasGaps) {
         
-        String msg = EWrapperMsgGenerator.historicalData(reqId, date, open, high, low, close, volume, count, WAP, hasGaps);
+        //String msg = EWrapperMsgGenerator.historicalData(reqId, date, open, high, low, close, volume, count, WAP, hasGaps);
+        
+        String msg= ""+date+";"+close;
         
         if (msg.toUpperCase().contains("FINISHED")) {
             mIsThisRequestFinished = true;
