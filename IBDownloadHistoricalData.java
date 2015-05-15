@@ -50,25 +50,25 @@ import java.util.List;
 class IBDownloadHistoricalData  implements EWrapper {
 
     private EClientSocket   mClient = new EClientSocket( this);
-    private FileLog     mDataFile;
+    //private FileLog     mDataFile;
     private FileLog     mServerResponsesLog = new FileLog("ServerResponses.txt");
     private FileLog     mServerErrorsLog = new FileLog("ServerErrors.txt");
-    
-	//CHANGE this to the desired path
-	private String 		mDataPath = "Data/JPY/BID/";
-	//CHANGE this to the desired contract
-	private Contract mContract =  new Contract(0, "USD", "CASH", "",
-                    0, "", "",
-                    "IDEALPRO", "JPY", "", "",
-                    new Vector<ComboLeg>(), "IDEALPRO", false,
-                    "", "");
-	//CHANGE this between BID and ASK to get different fields
-	private String mRequestField = "BID";
-	//CHANGE this to tweak how long to wait for data to come in
-	private int mDataWaitTimeSeconds = 60; 
-	
-	private boolean mIsThisRequestFinished = false;
-	private Date mCurrRequestDateTime = null;
+  
+    //CHANGE this to the desired path
+    private String 		mDataPath = "Data/JPY/BID/";
+    //CHANGE this to the desired contract
+    private Contract mContract =  new Contract(0, "USD", "CASH", "",
+                0, "", "",
+                "IDEALPRO", "JPY", "", "",
+                new Vector<ComboLeg>(), "IDEALPRO", false,
+                "", "");
+    //CHANGE this between BID and ASK to get different fields
+    private String mRequestField = "BID_ASK";
+    //CHANGE this to tweak how long to wait for data to come in
+    private int mDataWaitTimeSeconds = 60; 
+
+    private boolean mIsThisRequestFinished = false;
+    private Date mCurrRequestDateTime = null;
 				
     //Added dummy methods to make it compile
     public void displayGroupUpdated( int reqId, String contractInfo){};
@@ -84,84 +84,82 @@ class IBDownloadHistoricalData  implements EWrapper {
 		downloader.run();
     }
 
-	private Date getLatestDownloadDate() {
-		//the day before at 12midnight
-		Calendar cal = Calendar.getInstance();
-		cal.setTime(new Date());
-		cal.set(Calendar.HOUR_OF_DAY, 0);
+    private Date getLatestDownloadDate() {
+        //the day before at 12midnight
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(new Date());
+        cal.set(Calendar.HOUR_OF_DAY, 0);
         cal.set(Calendar.MINUTE, 0);
         cal.set(Calendar.SECOND, 0);
-        cal.set(Calendar.MILLISECOND, 0);
-		cal.add(Calendar.DATE, -1);
-		Date date1DayBefore = cal.getTime();
-		return date1DayBefore;
-	}
+        cal.set(Calendar.MILLISECOND, 0);   
+        cal.add(Calendar.DATE, -1);
+        Date date1DayBefore = cal.getTime();
+        return date1DayBefore;
+    }
+
+    //CHANGE this to the first download date, which depends on how much data access you have in your IB account
+    private Date getFirstDownloadDate() {
+            Calendar cal = Calendar.getInstance();
+            cal.set(2007, 6, 1, 0, 0);
+            Date d = cal.getTime();
+            return d;
+    }
+
+    void run() {
+        connect();
+        long firstDownloadDateSeconds = getFirstDownloadDate().getTime();
+
+        //loop until we are done with all requests
+        while (true) {
+            //do one request, loop here until we are done or exceed time
+            Date startTime = new Date();
+            mIsThisRequestFinished = false;
+            requestHistoricalData();
+            while (!mIsThisRequestFinished) {
+                    try {
+                            Thread.sleep(5000);
+                    } catch (Exception e) {
+                            System.err.println(e);
+                    }
+                    Date currTime = new Date();
+                    long timediffSeconds = (currTime.getTime() - startTime.getTime())/1000L;
+
+                    //waited too long break out and try again
+                    if (timediffSeconds > mDataWaitTimeSeconds) {
+                            break;
+                    }
+            }
+            //mDataFile.close();
+            if (!mIsThisRequestFinished) {
+                    System.err.println ("Failed to finish current request " + mCurrRequestDateTime);
+                    //mDataFile.delete();
+            }
+
+            if (firstDownloadDateSeconds > mCurrRequestDateTime.getTime()) {
+                    //this actually means we finished all the downloading
+                    break;
+            }
+
+            //force sleep 20 seconds to slow down requests to avoid IB pacing constraints
+            try {
+                            Thread.sleep(20000);
+                    } catch (Exception e) {
+                            System.err.println(e);
+            }
+
+        }
+
+        disconnect();
+        //if (mDataFile != null) {
+        //	mDataFile.close();
+        //}
+        mServerResponsesLog.close();
+        mServerErrorsLog.close();
+    }
 	
-	//CHANGE this to the first download date, which depends on how much data access you have in your IB account
-	private Date getFirstDownloadDate() {
-		Calendar cal = Calendar.getInstance();
-		cal.set(2007, 6, 1, 0, 0);
-		Date d = cal.getTime();
-		return d;
-	}
-	
-	void run() {
-		connect();
-		long firstDownloadDateSeconds = getFirstDownloadDate().getTime();
-		
-		//loop until we are done with all requests
-		while (true) {
-		
-			//do one request, loop here until we are done or exceed time
-			Date startTime = new Date();
-			mIsThisRequestFinished = false;
-			requestHistoricalData();
-			while (!mIsThisRequestFinished) {
-				try {
-					Thread.sleep(5000);
-				} catch (Exception e) {
-					System.err.println(e);
-				}
-				Date currTime = new Date();
-				long timediffSeconds = (currTime.getTime() - startTime.getTime())/1000L;
-				
-				//waited too long break out and try again
-				if (timediffSeconds > mDataWaitTimeSeconds) {
-					break;
-				}
-			}
-			mDataFile.close();
-			
-			if (!mIsThisRequestFinished) {
-				System.out.println ("Failed to finish current request " + mCurrRequestDateTime);
-				mDataFile.delete();
-			}
-			
-			if (firstDownloadDateSeconds > mCurrRequestDateTime.getTime()) {
-				//this actually means we finished all the downloading
-				break;
-			}
-			
-			//force sleep 20 seconds to slow down requests to avoid IB pacing constraints
-			try {
-					Thread.sleep(20000);
-				} catch (Exception e) {
-					System.err.println(e);
-			}
-			
-		}
-		
-		disconnect();
-		if (mDataFile != null) {
-			mDataFile.close();
-		}
-		mServerResponsesLog.close();
-		mServerErrorsLog.close();
-	}
-	
-	void connect() {
-		//connect localhost port 7496
-		mClient.eConnect("", 7496, 0);
+    void connect() {
+        //connect localhost port 7496
+        mClient.eConnect("", 7496, 0);
         if (mClient.isConnected()) {
             mServerResponsesLog.add("Connected to Tws server version " +
                        mClient.serverVersion() + " at " +
@@ -188,7 +186,7 @@ class IBDownloadHistoricalData  implements EWrapper {
 			mCurrRequestDateTime = getLatestDownloadDate();
 		}
 
-		mDataFile = new FileLog(mDataPath + String.format("%d.txt", num+1));
+		//mDataFile = new FileLog(mDataPath + String.format("%d.txt", num+1));
 		
 		SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMdd hh:mm:ss");
 		String requestDateTimeStr = formatter.format(mCurrRequestDateTime);
@@ -197,56 +195,56 @@ class IBDownloadHistoricalData  implements EWrapper {
 		
                 //Added new parameter List<TagValue> chartOptions as NULL, to make it work with the new API.
                 mClient.reqHistoricalData( 0, mContract, 
-                                           requestDateTimeStr, "1 D",
-                                           "1 min", mRequestField,
+                                           requestDateTimeStr, "1 M",
+                                           "1 day", mRequestField,
                                            1, 1, null);
 											
     }
 
-	public static Date getFirstDateTime(File file) {
-		try {		
-			BufferedReader br = new BufferedReader(new FileReader(file));
-			String line = br.readLine();
-			int index = line.indexOf("date = ");
-			
-			if (index < 1) {
-				System.err.println("Failed to parse out date from first line of " + file.toPath());
-				return null;
-			}
+    public static Date getFirstDateTime(File file) {
+            try {		
+                    BufferedReader br = new BufferedReader(new FileReader(file));
+                    String line = br.readLine();
+                    int index = line.indexOf("date = ");
 
-			String dateTimeString = line.substring(index+7, index + 25); //between these indices are the datetime numbers eg 20141225 01:00:00
-			SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMdd hh:mm:ss");
-			Date parsedDate = formatter.parse(dateTimeString);
-			
-			return parsedDate;
-			
-		} catch (Exception e) {
-			System.err.println(e);
-			return null;
-		}
-	}
+                    if (index < 1) {
+                            System.err.println("Failed to parse out date from first line of " + file.toPath());
+                            return null;
+                    }
+
+                    String dateTimeString = line.substring(index+7, index + 25); //between these indices are the datetime numbers eg 20141225 01:00:00
+                    SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMdd hh:mm:ss");
+                    Date parsedDate = formatter.parse(dateTimeString);
+
+                    return parsedDate;
+
+            } catch (Exception e) {
+                    System.err.println(e);
+                    return null;
+            }
+    }
 	
-	public static File lastFileModified(String dir) {
-		File fl = new File(dir);
-		File[] files = fl.listFiles(new FileFilter() {          
-			public boolean accept(File file) {
-				return file.isFile();
-			}
-			});
-		if (files.length == 0) {
-			return null;
-		}
-		
-		long lastMod = Long.MIN_VALUE;
-		File choice = null;
-		for (File file : files) {
-			if (file.lastModified() > lastMod) {
-				choice = file;
-				lastMod = file.lastModified();
-			}
-		}
-		return choice;
-	}
+    public static File lastFileModified(String dir) {
+            File fl = new File(dir);
+            File[] files = fl.listFiles(new FileFilter() {          
+                    public boolean accept(File file) {
+                            return file.isFile();
+                    }
+                    });
+            if (files.length == 0) {
+                    return null;
+            }
+
+            long lastMod = Long.MIN_VALUE;
+            File choice = null;
+            for (File file : files) {
+                    if (file.lastModified() > lastMod) {
+                            choice = file;
+                            lastMod = file.lastModified();
+                    }
+            }
+            return choice;
+    }
 	
     public void tickPrice( int tickerId, int field, double price, int canAutoExecute) {
     }
@@ -370,7 +368,9 @@ class IBDownloadHistoricalData  implements EWrapper {
 			mIsThisRequestFinished = true;
 		}
 		else {
-			mDataFile.add( msg );
+			//mDataFile.add( msg );
+                        
+                        System.out.println(msg);
 		}
     }
 	
