@@ -43,3 +43,7 @@ What to Show: BID/ASK
 Regular Trading Hours: 1
 
 Date Format Style: 1
+
+
+##How to run it##
+java -jar IBDownloadHistoricalDataCommandLine.jar -currency=USD -exchange=SMART -pexchange=NASDAQ -rangenumber=1 -rangeunits=Y -security=STK -symbol=AAPL

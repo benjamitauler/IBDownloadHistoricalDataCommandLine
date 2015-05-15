@@ -22,6 +22,14 @@ import java.util.Calendar;
 import java.lang.Thread;
 import java.util.List;
 
+// To process arguments
+import static org.kohsuke.args4j.ExampleMode.ALL;
+import org.kohsuke.args4j.Argument;
+import org.kohsuke.args4j.CmdLineException;
+import org.kohsuke.args4j.CmdLineParser;
+import org.kohsuke.args4j.Option;
+import org.kohsuke.args4j.spi.BooleanOptionHandler;
+
 /*
 	Historical Data Limitations: https://www.interactivebrokers.com/en/software/api/apiguide/tables/historical_data_limitations.htm
 	List of IB currencies: https://www.interactivebrokers.com/en/?f=%2Fen%2Ftrading%2Fexchanges.php%3Fexch%3Dibfxpro%26amp%3Bshowcategories%3D%26amp%3Bib_entity%3Dllc#
@@ -47,6 +55,8 @@ import java.util.List;
 	
 	
 */
+// Example on how to run it: 
+// java -jar IBDownloadHistoricalDataCommandLine.jar -currency=USD -exchange=SMART -pexchange=NASDAQ -rangenumber=1 -rangeunits=Y -security=STK -symbol=AAPL
 class IBDownloadHistoricalDataCommand  implements EWrapper {
 
     private EClientSocket   mClient = new EClientSocket( this);
@@ -54,10 +64,9 @@ class IBDownloadHistoricalDataCommand  implements EWrapper {
     // Create 2 logfiles
     private FileLog     mServerResponsesLog = new FileLog("ServerResponses.txt");
     private FileLog     mServerErrorsLog = new FileLog("ServerErrors.txt");
-  
     
-    //CHANGE this to the desired contract
-    private static Contract mContract;  
+    private int mConnectionId=0;
+    
     
     //CHANGE this between BID and ASK to get different fields
     private String mRequestField = "BID_ASK";
@@ -65,6 +74,33 @@ class IBDownloadHistoricalDataCommand  implements EWrapper {
     
     //CHANGE this to tweak how long to wait for data to come in
     private boolean mIsThisRequestFinished = false;
+    
+    
+    //Define Arguments
+     @Option(name="-symbol",usage="Short code for the symbol: USD, AAPL, AMZN, ... ")
+    private String mSymbol="USD";
+     @Option(name="-rangenumber",usage="Number of units of 'rangeuntis' in to be requested (integer). ")
+    private String mRangeNumber = "1";
+    @Option(name="-rangeunits",usage="Time unit, to be used together with 'rangenumber' defines the range of data to be requested, S Seconds, D days, W weeks, M months, Y years")
+    private String mRangeUnits="M";
+    @Option(name="-currency",usage="Currency of the symbol: JPY, USD, EUR, AUD... ")
+    private String mCurrency="JPY";
+    @Option(name="-security",usage="Security for the symbol: STK, CASH, BOND, FUND, OPT, FUT, IND & more ... ")
+    private String mSecurity="CASH";
+    @Option(name="-exchange",usage="Exchange market for the symbol: IDEALPRO, SMART, & more ... ")
+    private String mExchange="IDEALPRO";
+    @Option(name="-pexchange",usage="Primary exchange market for the symbol: IDEALPRO, SMART, & more ... ")
+    private String mPrimaryExchange="IDEALPRO";
+    @Option(name="-field",usage="Field to ask for: BID, ASK, BID_ASK, TRADES, HISTORICAL_VOLATILTY ... ")
+    private String mField="BID_ASK";
+    @Option(name="-lastdate",usage="End date of the range to be requested Example/Default: 20150312")
+    private String mLastDate="20150312";
+    @Option(name="-lasthour",usage="End hour of the range to be requested Example/Default: 00:00:00")
+    private String mLastHour="00:00:00";
+   
+     
+    
+    
     
     // --------------- MAIN ----------------------------------
     public static void main (String args[]) {
@@ -74,24 +110,56 @@ class IBDownloadHistoricalDataCommand  implements EWrapper {
         downloader.run(args);
     }
     
+    private  void parseParameters (String args[]) {
+        CmdLineParser parser = new CmdLineParser(this);
+        
+        // if you have a wider console, you could increase the value;
+        // here 80 is also the default
+        //parser.setUsageWidth(80);
+
+        try {
+            // parse the arguments.
+            parser.parseArgument(args);
+
+        } catch( CmdLineException e ) {
+            // if there's a problem in the command line,
+            // you'll get this exception. this will report
+            // an error message.
+            System.err.println(e.getMessage());
+            System.err.println("java SampleMain [options...] arguments...");
+            // print the list of available options
+            parser.printUsage(System.err);
+            System.err.println();
+            // print option sample. This is useful some time
+            System.err.println("  Example: java SampleMain"+parser.printExample(ALL));
+            System.exit(3);
+            
+        }
+        
+    }
+    
     // ------------ RUN METHOD ----------------------------
     void run(String args[]) {
+        
+        parseParameters(args);
+     
+       
         connect();
        
         Contract contract= new Contract();
-        contract.m_conId=0;  
-        contract.m_symbol="USD";  // Strange: This is the currency xD
-        contract.m_secType="CASH"; 
+        contract.m_conId=mConnectionId;  
+        contract.m_symbol=mSymbol;  // Strange: This is the currency xD
+        contract.m_secType=mSecurity; 
         contract.m_expiry="";
         contract.m_strike=0;
         contract.m_right="";
         contract.m_multiplier="";
-        contract.m_exchange="IDEALPRO";
-        contract.m_currency="JPY"; // Strange: This is the symbol xD
+        contract.m_exchange=mExchange;
+        contract.m_currency=mCurrency; 
         contract.m_localSymbol="";
         contract.m_tradingClass="";
         contract.m_comboLegs=new Vector<ComboLeg>();
-        contract.m_primaryExch="IDEALPRO";
+        contract.m_primaryExch=mPrimaryExchange;
         contract.m_includeExpired=false;
         contract.m_secIdType="";
         contract.m_secId="";
@@ -100,7 +168,7 @@ class IBDownloadHistoricalDataCommand  implements EWrapper {
         String requestDateTimeStr = formatter.format(getLatestDownloadDate());
         
         mIsThisRequestFinished = false;
-        requestHistoricalData(0,contract,"1 W","BID_ASK",requestDateTimeStr);
+        requestHistoricalData(contract,mRangeNumber+" "+mRangeUnits,mField,mLastDate+" "+mLastHour);
         //loop & wait for response from server
         int waitResponseCounter=0;
         while (!mIsThisRequestFinished) {
@@ -150,7 +218,7 @@ class IBDownloadHistoricalDataCommand  implements EWrapper {
     void connect() {
         int contador=0;
         //connect localhost port 7496
-        mClient.eConnect("", 7496, 0); 
+        mClient.eConnect("", 7496, mConnectionId); 
         while (!mClient.isConnected()) {
             try {
                 contador++;
@@ -176,11 +244,11 @@ class IBDownloadHistoricalDataCommand  implements EWrapper {
         mClient.eDisconnect();
     }
 
-    void requestHistoricalData(int connectionId,Contract contract, String range, String field, String lastDate) {
+    void requestHistoricalData(Contract contract, String range, String field, String lastDate) {
                 //Set to yesterday (we dont want Real Time data, we want only closing quotes)
 		System.out.println(String.format("Send Historical Data Request For contract=%s requestDateTimeStr=%s requestField=%s", contract.m_currency, lastDate, field));
                 //Added new parameter List<TagValue> chartOptions as NULL, to make it work with the new API.
-                mClient.reqHistoricalData( connectionId, contract, lastDate, range, "1 day", field, 1, 1, null);										
+                mClient.reqHistoricalData( 0, contract, lastDate, range, "1 day", field, 1, 1, null);										
     }
 	
     public void nextValidId( int orderId) {
@@ -206,7 +274,7 @@ class IBDownloadHistoricalDataCommand  implements EWrapper {
         String msg = AnyWrapperMsgGenerator.connectionClosed();
     }
 
-
+    // Is called once per data line returned
     public void historicalData(int reqId, String date, double open, double high, double low,
                                double close, int volume, int count, double WAP, boolean hasGaps) {
         
