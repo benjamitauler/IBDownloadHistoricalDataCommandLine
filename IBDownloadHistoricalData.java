@@ -54,8 +54,7 @@ class IBDownloadHistoricalData  implements EWrapper {
     private FileLog     mServerResponsesLog = new FileLog("ServerResponses.txt");
     private FileLog     mServerErrorsLog = new FileLog("ServerErrors.txt");
   
-    //CHANGE this to the desired path
-    private String 		mDataPath = "Data/JPY/BID/";
+    
     //CHANGE this to the desired contract
     private Contract mContract =  new Contract(0, "USD", "CASH", "",
                 0, "", "",
@@ -70,12 +69,6 @@ class IBDownloadHistoricalData  implements EWrapper {
     private boolean mIsThisRequestFinished = false;
     private Date mCurrRequestDateTime = null;
 				
-    //Added dummy methods to make it compile
-    public void displayGroupUpdated( int reqId, String contractInfo){};
-    public void displayGroupList( int reqId, String groups){};
-    public void verifyCompleted( boolean isSuccessful, String errorText){};
-    public void verifyMessageAPI( String apiData){};
-    
     
     
     public static void main (String args[]) {
@@ -139,14 +132,12 @@ class IBDownloadHistoricalData  implements EWrapper {
                     //this actually means we finished all the downloading
                     break;
             }
-
             //force sleep 20 seconds to slow down requests to avoid IB pacing constraints
             try {
                             Thread.sleep(20000);
                     } catch (Exception e) {
                             System.err.println(e);
             }
-
         }
 
         disconnect();
@@ -172,33 +163,17 @@ class IBDownloadHistoricalData  implements EWrapper {
     }
 
     void requestHistoricalData() {
-		File latestFile = lastFileModified(mDataPath);
-		int num = 0;
-		if (latestFile != null) {
-			mCurrRequestDateTime = getFirstDateTime(latestFile);
-		
-			String latestFileName = latestFile.getName();
-			
-			int index = latestFileName.indexOf(".");
-			String fileNameSubstring = latestFileName.substring(0, index);
-			num = Integer.parseInt(fileNameSubstring);
-		} else {
-			mCurrRequestDateTime = getLatestDownloadDate();
-		}
-
-		//mDataFile = new FileLog(mDataPath + String.format("%d.txt", num+1));
-		
+                //Set to yesterday (we dont want Real Time data, we want only closing quotes)
+		mCurrRequestDateTime = getLatestDownloadDate();
 		SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMdd hh:mm:ss");
 		String requestDateTimeStr = formatter.format(mCurrRequestDateTime);
 		
 		System.out.println(String.format("Send Historical Data Request For contract=%s requestDateTimeStr=%s requestField=%s", mContract.m_currency, requestDateTimeStr, mRequestField));
-		
                 //Added new parameter List<TagValue> chartOptions as NULL, to make it work with the new API.
                 mClient.reqHistoricalData( 0, mContract, 
                                            requestDateTimeStr, "1 M",
                                            "1 day", mRequestField,
-                                           1, 1, null);
-											
+                                           1, 1, null);										
     }
 
     public static Date getFirstDateTime(File file) {
@@ -246,79 +221,11 @@ class IBDownloadHistoricalData  implements EWrapper {
             return choice;
     }
 	
-    public void tickPrice( int tickerId, int field, double price, int canAutoExecute) {
-    }
-
-    public void tickOptionComputation( int tickerId, int field, double impliedVol, double delta, double optPrice, double pvDividend,
-        double gamma, double vega, double theta, double undPrice) {
-    }
-
-    public void tickSize( int tickerId, int field, int size) {
-    }
-
-    public void tickGeneric( int tickerId, int tickType, double value) {
-    }
-
-    public void tickString( int tickerId, int tickType, String value) {
-    }
-
-    public void tickSnapshotEnd(int tickerId) {
-    }
-
-    public void tickEFP(int tickerId, int tickType, double basisPoints, String formattedBasisPoints,
-    					double impliedFuture, int holdDays, String futureExpiry, double dividendImpact,
-    					double dividendsToExpiry) {
-    }
-
-    public void orderStatus( int orderId, String status, int filled, int remaining,
-    						 double avgFillPrice, int permId, int parentId,
-    						 double lastFillPrice, int clientId, String whyHeld) {
-    }
-
-    public void openOrder( int orderId, Contract contract, Order order, OrderState orderState) {
-    }
-
-    public void openOrderEnd() {
-    }
-
-    public void contractDetails(int reqId, ContractDetails contractDetails) {
-    }
-
-	public void contractDetailsEnd(int reqId) {
-	}
-
-    public void scannerData(int reqId, int rank, ContractDetails contractDetails,
-                            String distance, String benchmark, String projection, String legsStr) {
-    }
-
-    public void scannerDataEnd(int reqId) {
-    }
-
-    public void bondContractDetails(int reqId, ContractDetails contractDetails)
-    {   	
-    }
-
-    public void execDetails(int reqId, Contract contract, Execution execution)
-    {
-    }
-
-    public void execDetailsEnd(int reqId)
-    {
-    }
-
-    public void updateMktDepth( int tickerId, int position, int operation,
-                    int side, double price, int size) {
-    }
-
-    public void updateMktDepthL2( int tickerId, int position, String marketMaker,
-                    int operation, int side, double price, int size) {
-    }
-
     public void nextValidId( int orderId) {
         // received next valid order id
     	String msg = EWrapperMsgGenerator.nextValidId( orderId);
         mServerResponsesLog.add(msg) ;
-		mServerResponsesLog.flush();
+	mServerResponsesLog.flush();
     }
 
     public void error(Exception ex) {
@@ -340,26 +247,6 @@ class IBDownloadHistoricalData  implements EWrapper {
         String msg = AnyWrapperMsgGenerator.connectionClosed();
     }
 
-    public void updateAccountValue(String key, String value,
-                                   String currency, String accountName) {
-    }
-
-    public void updatePortfolio(Contract contract, int position, double marketPrice,
-        double marketValue, double averageCost, double unrealizedPNL, double realizedPNL,
-        String accountName) {
-    }
-
-    public void updateAccountTime(String timeStamp) {
-    }
-
-    public void accountDownloadEnd(String accountName) {
-    }
-
-    public void updateNewsBulletin( int msgId, int msgType, String message, String origExchange) {
-    }
-
-    public void managedAccounts( String accountsList) {
-    }
 
     public void historicalData(int reqId, String date, double open, double high, double low,
                                double close, int volume, int count, double WAP, boolean hasGaps) {
@@ -374,78 +261,92 @@ class IBDownloadHistoricalData  implements EWrapper {
 		}
     }
 	
-	public void realtimeBar(int reqId, long time, double open, double high, double low, double close, long volume, double wap, int count) {
-	}
 	
-    public void scannerParameters(String xml) {
-    }
 
-	public void currentTime(long time) {
-	}
-	
-	public void fundamentalData(int reqId, String data) {
-	}
-	
-	public void deltaNeutralValidation(int reqId, UnderComp underComp) {
-	}
+    // ****************************************************************************************
+    // *                            FILE LOG                                                  *
+    // ****************************************************************************************
+    class FileLog {
+            PrintWriter writer = null;
+            public String mFilePath;
 
-    public void receiveFA(int faDataType, String xml) {
-    }
+            public FileLog(String filePath) {
+                    mFilePath = filePath;
+                    try {
+                            writer = new PrintWriter(new BufferedWriter(new FileWriter(filePath, true)));
+                    }catch (Exception e) {
+                            System.err.println(e);
+                    }
+            }
 
-    public void marketDataType(int reqId, int marketDataType) {
-    }
+            public void add(String msg) {
+                    SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMdd hh:mm:ss");
+                    String nowDateTimeStr = formatter.format(new Date());
+                    writer.write(nowDateTimeStr + " " + msg + "\n");
+            }
 
-    public void commissionReport(CommissionReport commissionReport) {
-    }
+            public void close() {
+                    writer.flush();
+                    writer.close();
+            }
 
-    public void position(String account, Contract contract, int pos, double avgCost) {
-    }
+            public void flush() {
+                    writer.flush();
+            }
 
-    public void positionEnd() {
-    }
+            public void delete() {
+                    try {
+                            File file = new File(mFilePath);
+                            file.delete();
+                    } catch (Exception e) {
+                            System.err.println("Failed to delete file: " + mFilePath);
+                    }
 
-    public void accountSummary( int reqId, String account, String tag, String value, String currency) {
+            }
     }
-
-    public void accountSummaryEnd( int reqId) {
-    }
-	
-	class FileLog {
-		PrintWriter writer = null;
-		public String mFilePath;
-	
-		public FileLog(String filePath) {
-			mFilePath = filePath;
-			try {
-				writer = new PrintWriter(new BufferedWriter(new FileWriter(filePath, true)));
-			}catch (Exception e) {
-				System.err.println(e);
-			}
-		}
-		
-		public void add(String msg) {
-			SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMdd hh:mm:ss");
-			String nowDateTimeStr = formatter.format(new Date());
-			writer.write(nowDateTimeStr + " " + msg + "\n");
-		}
-		
-		public void close() {
-			writer.flush();
-			writer.close();
-		}
-		
-		public void flush() {
-			writer.flush();
-		}
-		
-		public void delete() {
-			try {
-				File file = new File(mFilePath);
-				file.delete();
-			} catch (Exception e) {
-				System.err.println("Failed to delete file: " + mFilePath);
-			}
-			
-		}
-	}
+    // ************************************************************************************    
+    // *                           INTERFACE METHODS WE ARE NOT USING                     *
+    // ************************************************************************************
+    public void displayGroupUpdated( int reqId, String contractInfo){}
+    public void displayGroupList( int reqId, String groups){}
+    public void verifyCompleted( boolean isSuccessful, String errorText){}
+    public void verifyMessageAPI( String apiData){}
+    public void tickPrice( int tickerId, int field, double price, int canAutoExecute) {}
+    public void tickOptionComputation( int tickerId, int field, double impliedVol, double delta, double optPrice, double pvDividend,double gamma, double vega, double theta, double undPrice) {}
+    public void tickSize( int tickerId, int field, int size) {}
+    public void tickGeneric( int tickerId, int tickType, double value) {}
+    public void tickString( int tickerId, int tickType, String value) {}
+    public void tickSnapshotEnd(int tickerId) {}
+    public void tickEFP(int tickerId, int tickType, double basisPoints, String formattedBasisPoints,double impliedFuture, int holdDays, String futureExpiry, double dividendImpact,double dividendsToExpiry) {}
+    public void orderStatus( int orderId, String status, int filled, int remaining,double avgFillPrice, int permId, int parentId,double lastFillPrice, int clientId, String whyHeld) {}
+    public void openOrder( int orderId, Contract contract, Order order, OrderState orderState) {}
+    public void openOrderEnd(){}
+    public void contractDetails(int reqId, ContractDetails contractDetails) {}
+    public void contractDetailsEnd(int reqId) {}
+    public void scannerData(int reqId, int rank, ContractDetails contractDetails,String distance, String benchmark, String projection, String legsStr) {}
+    public void scannerDataEnd(int reqId) {}
+    public void bondContractDetails(int reqId, ContractDetails contractDetails){}
+    public void execDetails(int reqId, Contract contract, Execution execution){}
+    public void execDetailsEnd(int reqId){}
+    public void updateMktDepth( int tickerId, int position, int operation,int side, double price, int size) {}
+    public void updateMktDepthL2( int tickerId, int position, String marketMaker,int operation, int side, double price, int size) {}
+    public void updateAccountValue(String key, String value,String currency, String accountName) {}
+    public void updatePortfolio(Contract contract, int position, double marketPrice,double marketValue, double averageCost, double unrealizedPNL, double realizedPNL,String accountName) {}
+    public void updateAccountTime(String timeStamp) {}
+    public void accountDownloadEnd(String accountName) {}
+    public void updateNewsBulletin( int msgId, int msgType, String message, String origExchange) {}
+    public void managedAccounts( String accountsList) {}
+    public void realtimeBar(int reqId, long time, double open, double high, double low, double close, long volume, double wap, int count) {}	
+    public void scannerParameters(String xml) {}
+    public void currentTime(long time) {}
+    public void fundamentalData(int reqId, String data) {}
+    public void deltaNeutralValidation(int reqId, UnderComp underComp) {}
+    public void receiveFA(int faDataType, String xml) {}
+    public void marketDataType(int reqId, int marketDataType) {}
+    public void commissionReport(CommissionReport commissionReport) {}
+    public void position(String account, Contract contract, int pos, double avgCost) {}
+    public void positionEnd() {}
+    public void accountSummary( int reqId, String account, String tag, String value, String currency) {}
+    public void accountSummaryEnd( int reqId) {}
+        
 }
