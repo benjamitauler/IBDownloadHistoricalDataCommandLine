@@ -50,31 +50,78 @@ import java.util.List;
 class IBDownloadHistoricalData  implements EWrapper {
 
     private EClientSocket   mClient = new EClientSocket( this);
-    //private FileLog     mDataFile;
+   
+    // Create 2 logfiles
     private FileLog     mServerResponsesLog = new FileLog("ServerResponses.txt");
     private FileLog     mServerErrorsLog = new FileLog("ServerErrors.txt");
   
     
     //CHANGE this to the desired contract
-    private Contract mContract =  new Contract(0, "USD", "CASH", "",
-                0, "", "",
-                "IDEALPRO", "JPY", "", "",
-                new Vector<ComboLeg>(), "IDEALPRO", false,
-                "", "");
+    private static Contract mContract;  
+    
     //CHANGE this between BID and ASK to get different fields
     private String mRequestField = "BID_ASK";
+    private String mTicker="";
+    
     //CHANGE this to tweak how long to wait for data to come in
-    private int mDataWaitTimeSeconds = 60; 
-
     private boolean mIsThisRequestFinished = false;
-    private Date mCurrRequestDateTime = null;
-				
     
-    
+    // --------------- MAIN ----------------------------------
     public static void main (String args[]) {
-		System.out.println("Starting IBDownloadHistoricalData");
-		IBDownloadHistoricalData downloader = new IBDownloadHistoricalData();
-		downloader.run();
+        //System.out.println("Starting IBDownloadHistoricalData");
+        // Create a instance of this object.
+        IBDownloadHistoricalData downloader = new IBDownloadHistoricalData();
+        downloader.run(args);
+    }
+    
+    // ------------ RUN METHOD ----------------------------
+    void run(String args[]) {
+        connect();
+       
+        Contract contract= new Contract();
+        contract.m_conId=0;  
+        contract.m_symbol="USD";  // Strange: This is the currency xD
+        contract.m_secType="CASH"; 
+        contract.m_expiry="";
+        contract.m_strike=0;
+        contract.m_right="";
+        contract.m_multiplier="";
+        contract.m_exchange="IDEALPRO";
+        contract.m_currency="JPY"; // Strange: This is the symbol xD
+        contract.m_localSymbol="";
+        contract.m_tradingClass="";
+        contract.m_comboLegs=new Vector<ComboLeg>();
+        contract.m_primaryExch="IDEALPRO";
+        contract.m_includeExpired=false;
+        contract.m_secIdType="";
+        contract.m_secId="";
+        
+        SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMdd hh:mm:ss");
+        String requestDateTimeStr = formatter.format(getLatestDownloadDate());
+        
+        mIsThisRequestFinished = false;
+        requestHistoricalData(0,contract,"1 W","BID_ASK",requestDateTimeStr);
+        //loop & wait for response from server
+        int waitResponseCounter=0;
+        while (!mIsThisRequestFinished) {
+            try {
+                waitResponseCounter++;
+                Thread.sleep(500);
+                
+            } catch (Exception e) {
+                   System.err.println(e);
+                   System.exit(2);
+              }
+            if (waitResponseCounter>20){
+                System.err.println("We haven't received any response from server. ");
+                System.exit(1);
+            }
+        }
+        disconnect();
+        mServerResponsesLog.close();
+        mServerErrorsLog.close();
+        System.exit(0);
+        
     }
 
     private Date getLatestDownloadDate() {
@@ -98,59 +145,26 @@ class IBDownloadHistoricalData  implements EWrapper {
             return d;
     }
 
-    void run() {
-        connect();
-        long firstDownloadDateSeconds = getFirstDownloadDate().getTime();
 
-        //loop until we are done with all requests
-        while (true) {
-            //do one request, loop here until we are done or exceed time
-            Date startTime = new Date();
-            mIsThisRequestFinished = false;
-            requestHistoricalData();
-            while (!mIsThisRequestFinished) {
-                    try {
-                            Thread.sleep(5000);
-                    } catch (Exception e) {
-                            System.err.println(e);
-                    }
-                    Date currTime = new Date();
-                    long timediffSeconds = (currTime.getTime() - startTime.getTime())/1000L;
-
-                    //waited too long break out and try again
-                    if (timediffSeconds > mDataWaitTimeSeconds) {
-                            break;
-                    }
-            }
-            //mDataFile.close();
-            if (!mIsThisRequestFinished) {
-                    System.err.println ("Failed to finish current request " + mCurrRequestDateTime);
-                    //mDataFile.delete();
-            }
-
-            if (firstDownloadDateSeconds > mCurrRequestDateTime.getTime()) {
-                    //this actually means we finished all the downloading
-                    break;
-            }
-            //force sleep 20 seconds to slow down requests to avoid IB pacing constraints
-            try {
-                            Thread.sleep(20000);
-                    } catch (Exception e) {
-                            System.err.println(e);
-            }
-        }
-
-        disconnect();
-        //if (mDataFile != null) {
-        //	mDataFile.close();
-        //}
-        mServerResponsesLog.close();
-        mServerErrorsLog.close();
-    }
 	
     void connect() {
+        int contador=0;
         //connect localhost port 7496
-        mClient.eConnect("", 7496, 0);
+        mClient.eConnect("", 7496, 0); 
+        while (!mClient.isConnected()) {
+            try {
+                contador++;
+                Thread.sleep(500);
+                
+            } catch (Exception e) {
+                            System.err.println(e);
+              }
+            if (contador>10) {
+                mClient.eDisconnect();
+                System.err.println("We cannot connect to the TWS.");
+                System.exit(1);
+            }
+        } 
         if (mClient.isConnected()) {
             mServerResponsesLog.add("Connected to Tws server version " +
                        mClient.serverVersion() + " at " +
@@ -162,63 +176,11 @@ class IBDownloadHistoricalData  implements EWrapper {
         mClient.eDisconnect();
     }
 
-    void requestHistoricalData() {
+    void requestHistoricalData(int connectionId,Contract contract, String range, String field, String lastDate) {
                 //Set to yesterday (we dont want Real Time data, we want only closing quotes)
-		mCurrRequestDateTime = getLatestDownloadDate();
-		SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMdd hh:mm:ss");
-		String requestDateTimeStr = formatter.format(mCurrRequestDateTime);
-		
-		System.out.println(String.format("Send Historical Data Request For contract=%s requestDateTimeStr=%s requestField=%s", mContract.m_currency, requestDateTimeStr, mRequestField));
+		System.out.println(String.format("Send Historical Data Request For contract=%s requestDateTimeStr=%s requestField=%s", contract.m_currency, lastDate, field));
                 //Added new parameter List<TagValue> chartOptions as NULL, to make it work with the new API.
-                mClient.reqHistoricalData( 0, mContract, 
-                                           requestDateTimeStr, "1 M",
-                                           "1 day", mRequestField,
-                                           1, 1, null);										
-    }
-
-    public static Date getFirstDateTime(File file) {
-            try {		
-                    BufferedReader br = new BufferedReader(new FileReader(file));
-                    String line = br.readLine();
-                    int index = line.indexOf("date = ");
-
-                    if (index < 1) {
-                            System.err.println("Failed to parse out date from first line of " + file.toPath());
-                            return null;
-                    }
-
-                    String dateTimeString = line.substring(index+7, index + 25); //between these indices are the datetime numbers eg 20141225 01:00:00
-                    SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMdd hh:mm:ss");
-                    Date parsedDate = formatter.parse(dateTimeString);
-
-                    return parsedDate;
-
-            } catch (Exception e) {
-                    System.err.println(e);
-                    return null;
-            }
-    }
-	
-    public static File lastFileModified(String dir) {
-            File fl = new File(dir);
-            File[] files = fl.listFiles(new FileFilter() {          
-                    public boolean accept(File file) {
-                            return file.isFile();
-                    }
-                    });
-            if (files.length == 0) {
-                    return null;
-            }
-
-            long lastMod = Long.MIN_VALUE;
-            File choice = null;
-            for (File file : files) {
-                    if (file.lastModified() > lastMod) {
-                            choice = file;
-                            lastMod = file.lastModified();
-                    }
-            }
-            return choice;
+                mClient.reqHistoricalData( connectionId, contract, lastDate, range, "1 day", field, 1, 1, null);										
     }
 	
     public void nextValidId( int orderId) {
@@ -226,9 +188,6 @@ class IBDownloadHistoricalData  implements EWrapper {
     	String msg = EWrapperMsgGenerator.nextValidId( orderId);
         mServerResponsesLog.add(msg) ;
 	mServerResponsesLog.flush();
-    }
-
-    public void error(Exception ex) {
     }
 
     public void error( String str) {
@@ -250,15 +209,15 @@ class IBDownloadHistoricalData  implements EWrapper {
 
     public void historicalData(int reqId, String date, double open, double high, double low,
                                double close, int volume, int count, double WAP, boolean hasGaps) {
+        
         String msg = EWrapperMsgGenerator.historicalData(reqId, date, open, high, low, close, volume, count, WAP, hasGaps);
-		if (msg.toUpperCase().contains("FINISHED")) {
-			mIsThisRequestFinished = true;
-		}
-		else {
-			//mDataFile.add( msg );
-                        
-                        System.out.println(msg);
-		}
+        
+        if (msg.toUpperCase().contains("FINISHED")) {
+            mIsThisRequestFinished = true;
+	}
+	else {                
+            System.out.println(msg);
+	}
     }
 	
 	
@@ -348,5 +307,6 @@ class IBDownloadHistoricalData  implements EWrapper {
     public void positionEnd() {}
     public void accountSummary( int reqId, String account, String tag, String value, String currency) {}
     public void accountSummaryEnd( int reqId) {}
+    public void error(Exception ex) {}
         
 }
