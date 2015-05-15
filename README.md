@@ -1,20 +1,13 @@
 # IBDownloadHistoricalData
 
-Downloads historical data from interactive brokers and builds a data file useful for subsequent back-test
+Downloads historical data from interactive brokers and outputs it on the standard output (console)
 
-By [RobustTechHouse](http://robusttechhouse.com) http://robusttechhouse.com
+Returns 0 on success
 
-##Java Logic##
-The Java class generates in desired path a series of data files in reverse chronological order eg
-  	
-  	1.txt => most recent data
-  	
-  	2.txt => next most recent data
-  	
-  	... etc
+Returns other values on Error
 
-##Python Logic##
-The Python script takes the Java class output files and creates one contiguous data file in chronological order
+By Benjamin tauler, based on [RobustTechHouse](http://robusttechhouse.com) http://robusttechhouse.com
+
 
 
 ##Useful References##
